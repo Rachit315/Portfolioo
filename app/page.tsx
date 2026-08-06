@@ -29,11 +29,11 @@ const projects = [
 ];
 
 const designEngineerVideos = [
-  { src: "/D.engineer/2026-08-05 09-58-01.mp4", href: figmaUrl },
-  { src: "/D.engineer/2026-08-04 11-31-36.mp4", href: figmaUrl },
-  { src: "/D.engineer/2026-08-02 22-49-22.mp4", href: figmaUrl },
-  { src: "/D.engineer/2026-08-01 10-21-50.mp4", href: figmaUrl },
-  { src: "/D.engineer/2026-08-01 10-21-31.mp4", href: figmaUrl },
+  { src: "/D.engineer/2026-08-05 09-58-01.mp4", href: "https://github-component.vercel.app/" },
+  { src: "/D.engineer/2026-08-04 11-31-36.mp4", href: "https://crazy-btn.vercel.app/" },
+  { src: "/D.engineer/2026-08-02 22-49-22.mp4", href: "https://widgetcn.vercel.app/" },
+  { src: "/D.engineer/2026-08-01 10-21-50.mp4", href: "https://football-card-zeta.vercel.app/" },
+  { src: "/D.engineer/2026-08-01 10-21-31.mp4", href: "https://cool-music-widget.vercel.app/" },
 ];
 
 function HighlightLink({
