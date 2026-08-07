@@ -6,6 +6,10 @@ import { useState, useRef } from "react";
 import { AsciiFluid } from "@/components/ui/ascii-fluid";
 import { Switch } from "@/components/ui/switch";
 import ASCIIText from "@/components/ASCIIText";
+import { ProfileTooltip } from "@/components/ProfileTooltip";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Calendar, ArrowUpRight } from "lucide-react";
 
 const workExperience = [
   { name: "North of Zero", year: "2026", href: "https://www.northofzero.dev/" },
@@ -121,10 +125,16 @@ function ListRow({
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <motion.p
-      className="text-[13px] text-neutral-500 mb-1"
+      className={`text-[13px] text-neutral-500 mb-1 ${className}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
@@ -249,14 +259,16 @@ export default function Home() {
         >
           <div>
             {!designEngineerMode && (
-              <motion.h1
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                className="text-[15px] font-semibold text-foreground"
-              >
-                Rachit Thakur
-              </motion.h1>
+              <ProfileTooltip>
+                <motion.h1
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -8 }}
+                  className="text-[15px] font-semibold text-foreground cursor-pointer select-none"
+                >
+                  Rachit Thakur
+                </motion.h1>
+              </ProfileTooltip>
             )}
           </div>
           <div className="flex items-center gap-2 text-neutral-500 text-[14px]">
@@ -378,7 +390,28 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <SectionLabel>Projects</SectionLabel>
+                <div className="flex items-center justify-between mb-1.5">
+                  <SectionLabel className="mb-0">Projects</SectionLabel>
+                  <motion.div
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  >
+                    <a
+                      href="https://cal.com/rachit-thakur-qkvvw3/30min"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "rounded-full h-7 px-3 text-[12px] font-medium border border-neutral-200 dark:border-neutral-800 shadow-none bg-background text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all group cursor-pointer inline-flex items-center gap-1.5 no-underline"
+                      )}
+                    >
+                      <Calendar className="size-3.5 text-neutral-500 group-hover:text-foreground transition-colors" />
+                      <span>Book a Call</span>
+                      <ArrowUpRight className="size-3 text-neutral-400 group-hover:text-foreground transition-colors" />
+                    </a>
+                  </motion.div>
+                </div>
                 <div>
                   {projects.map((item, i) => (
                     <ListRow
