@@ -1,0 +1,48 @@
+# On-Page SEO Reference
+
+On-page SEO is about whether a page, once crawled and indexed, clearly communicates what it's about and deserves to rank — and whether it convinces someone in a search results list to actually click.
+
+## Title tags
+
+- Unique per page, ideally 50-60 characters (longer gets truncated in search results, though Google now sometimes rewrites titles entirely based on query — a well-written title still matters as the anchor for that rewrite).
+- Should front-load the most important term/benefit rather than burying it — people and algorithms both weight earlier words more.
+- Avoid keyword-stuffing (`Best CRM Software | CRM Tool | CRM Platform | Buy CRM`) — it reads as spam and doesn't actually help rankings the way it did a decade ago.
+- Brand name placement: usually fine at the end (`Primary Keyword | Brand`) unless the brand itself is what people search for, in which case leading with it can help.
+
+## Meta descriptions
+
+- Not a direct ranking factor, but a major click-through-rate lever — think of it as ad copy for the organic result.
+- ~150-160 characters before truncation. Should include a clear value proposition or reason to click, not just a restatement of the title.
+- Google sometimes ignores the written meta description and generates its own snippet from page content if it thinks that's more relevant to the query — writing genuinely useful, specific meta descriptions makes Google more likely to use yours.
+
+## Heading structure
+
+- One H1 per page, matching the primary topic/intent of the page.
+- H2s/H3s should form a logical outline of the content — skipping levels (H2 straight to H4) isn't fatal but signals the content structure wasn't deliberately planned.
+- Headings are a strong on-page relevance signal and increasingly important for AI answer engines that often extract/cite by section — a clear heading outline makes a page easier to summarize and cite correctly.
+
+## Content quality & E-E-A-T
+
+E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness) isn't a literal ranking algorithm input, but it maps to what Google's Quality Rater Guidelines describe, and evaluating against it is a reasonable proxy for "would a human reviewer trust this page":
+
+- **Experience** — does the content show firsthand experience with the topic (specific detail, real examples, screenshots of actual usage) or does it read as generic, could-be-about-anything copy?
+- **Expertise** — is there evidence of real subject-matter knowledge? For B2B/SaaS, this often shows up as specificity: real numbers, named integrations, concrete workflows — not vague superlatives ("industry-leading," "best-in-class").
+- **Authoritativeness** — does the page/site have external signals backing it up (real customer logos/testimonials with attribution, press mentions, case studies with verifiable specifics)?
+- **Trustworthiness** — clear company info (who runs this, how to contact them), accurate claims, no dark patterns, HTTPS, clear pricing/terms where relevant.
+
+When auditing, don't just check for the presence of a testimonials section — check whether the content that IS there reads as specific and credible or as generic filler.
+
+## Internal linking
+
+- Every important page should be reachable within a few clicks from the homepage — orphaned pages (no internal links pointing to them) get crawled and ranked less reliably.
+- Anchor text should be descriptive of the destination rather than generic ("read our pricing guide" beats "click here").
+- Cornerstone/pillar pages (the ones you most want to rank) should generally receive more internal links than peripheral pages — internal link volume is a real signal of relative importance within the site.
+
+## Images
+
+- Alt text should describe the image's content/function for someone who can't see it — not stuffed with keywords. Purely decorative images can legitimately use `alt=""`.
+- Filenames and surrounding context (captions, nearby headings) also contribute to image search relevance.
+
+## Content depth vs. design-led pages
+
+Not every page needs to be a 1,500-word article. A strong, well-designed SaaS landing page can legitimately be light on body copy if the value proposition is clear and the page converts. When a script flags "low word count," the judgment call is: does this page need to *rank* on its own for non-branded search terms (then thin content is a real problem), or does it mainly need to *convert* traffic that arrived from elsewhere (then it's a design choice, not a defect) — flag it as worth a second look either way, but don't treat every short page as broken.

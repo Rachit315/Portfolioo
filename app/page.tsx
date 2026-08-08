@@ -133,14 +133,14 @@ function SectionLabel({
   className?: string;
 }) {
   return (
-    <motion.p
-      className={`text-[13px] text-neutral-500 mb-1 ${className}`}
+    <motion.h2
+      className={`text-[13px] text-neutral-500 mb-1 font-normal ${className}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
       {children}
-    </motion.p>
+    </motion.h2>
   );
 }
 
@@ -190,6 +190,7 @@ function DesignEngineerCard({
         target="_blank"
         rel="noopener noreferrer"
         className="block relative w-full"
+        aria-label={`View Design Engineer project demo ${index + 1}`}
       >
         <video
           ref={videoRef}
@@ -198,6 +199,8 @@ function DesignEngineerCard({
           muted
           playsInline
           preload="metadata"
+          aria-label={`Design Engineering Project interactive demo ${index + 1}`}
+          title={`Design Engineering Project demo ${index + 1}`}
           className="w-full h-auto block rounded-[16px] transition-transform duration-300 group-hover:scale-[1.01]"
         />
 
@@ -258,7 +261,7 @@ export default function Home() {
           transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
         >
           <div>
-            {!designEngineerMode && (
+            {!designEngineerMode ? (
               <ProfileTooltip>
                 <motion.h1
                   initial={{ opacity: 0, x: -8 }}
@@ -269,6 +272,15 @@ export default function Home() {
                   Rachit Thakur
                 </motion.h1>
               </ProfileTooltip>
+            ) : (
+              <motion.h1
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                className="text-[15px] font-semibold text-foreground cursor-default select-none"
+              >
+                Rachit Thakur
+              </motion.h1>
             )}
           </div>
           <div className="flex items-center gap-2 text-neutral-500 text-[14px]">

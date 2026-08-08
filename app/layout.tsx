@@ -14,9 +14,93 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rachit Thakur — Product Designer",
+  metadataBase: new URL("https://www.northofzero.dev"),
+  title: {
+    default: "Rachit Thakur — Product Designer & Design Engineer",
+    template: "%s | Rachit Thakur",
+  },
   description:
-    "Product Designer at North of Zero. From India, studying B.Tech in Data Science. Passionate about Design Engineering and Product building.",
+    "Product Designer at North of Zero specializing in Design Engineering, Product building, and Interaction Design. Based in India, studying B.Tech in Data Science.",
+  keywords: [
+    "Rachit Thakur",
+    "Product Designer",
+    "Design Engineer",
+    "North of Zero",
+    "UI UX Designer",
+    "Interaction Design",
+    "Frontend Engineering",
+    "Design Portfolio",
+  ],
+  authors: [{ name: "Rachit Thakur", url: "https://x.com/RachitThakur146" }],
+  creator: "Rachit Thakur",
+  publisher: "Rachit Thakur",
+  openGraph: {
+    title: "Rachit Thakur — Product Designer & Design Engineer",
+    description:
+      "Product Designer at North of Zero. Crafting interactions, design engineering, and product experiences.",
+    url: "https://www.northofzero.dev",
+    siteName: "Rachit Thakur Portfolio",
+    locale: "en_US",
+    type: "website",
+    images: [
+      {
+        url: "/Profile.png",
+        width: 1200,
+        height: 630,
+        alt: "Rachit Thakur - Product Designer",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Rachit Thakur — Product Designer & Design Engineer",
+    description:
+      "Product Designer at North of Zero. Specializing in Design Engineering and Product building.",
+    creator: "@RachitThakur146",
+    images: ["/Profile.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: "https://www.northofzero.dev",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: "Rachit Thakur",
+  jobTitle: "Product Designer",
+  description:
+    "Product Designer at North of Zero specializing in Design Engineering, Product building, and Interaction Design.",
+  url: "https://www.northofzero.dev",
+  worksFor: {
+    "@type": "Organization",
+    name: "North of Zero",
+    url: "https://www.northofzero.dev/",
+  },
+  sameAs: [
+    "https://github.com/Rachit315",
+    "https://www.linkedin.com/in/rachit-thakur007/",
+    "https://x.com/RachitThakur146",
+  ],
+  knowsAbout: [
+    "Product Design",
+    "Design Engineering",
+    "Interaction Design",
+    "UI/UX Design",
+    "Frontend Development",
+    "Data Science",
+  ],
 };
 
 export default function RootLayout({
@@ -29,6 +113,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <Analytics />
