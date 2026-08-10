@@ -7,6 +7,7 @@ import { AsciiFluid } from "@/components/ui/ascii-fluid";
 import { Switch } from "@/components/ui/switch";
 import ASCIIText from "@/components/ASCIIText";
 import { ProfileTooltip } from "@/components/ProfileTooltip";
+import { LetsTalkTooltip } from "@/components/LetsTalkTooltip";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Calendar, ArrowUpRight } from "lucide-react";
@@ -239,7 +240,7 @@ export default function Home() {
   const [designEngineerMode, setDesignEngineerMode] = useState(false);
 
   return (
-    <main className="relative min-h-screen flex justify-center px-6 py-16 sm:py-24">
+    <main className="relative min-h-screen flex justify-center overflow-x-hidden px-4 py-8 sm:px-6 sm:py-16 md:py-24">
       <AsciiFluid
         className="fixed inset-0 -z-10 w-full h-full"
         color="#121212"
@@ -248,14 +249,14 @@ export default function Home() {
         force={0.2}
         dissipation={0.09}
         brush={0.35}
-        animate={true}
+        animate={false}
         interactive={true}
       />
 
       <div className="w-full max-w-[520px]">
         {/* Header */}
         <motion.div
-          className="flex items-center justify-between mb-8 min-h-[32px]"
+          className="flex min-h-[32px] flex-wrap items-center justify-between gap-3 mb-8"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -284,7 +285,7 @@ export default function Home() {
             )}
           </div>
           <div className="flex items-center gap-2 text-neutral-500 text-[14px]">
-            <span>Design Engineer</span>
+            <span className="text-right">Design Engineer</span>
             <Switch
               checked={designEngineerMode}
               onCheckedChange={setDesignEngineerMode}
@@ -369,10 +370,10 @@ export default function Home() {
                   </a>
                   .
                 </p>
-                <p className="text-[15px] leading-[1.7] text-foreground">
-                  Outside of work, I explore interaction design and build
-                  experimental UI concepts.
-                </p>
+                <div className="text-[15px] leading-[1.7] text-foreground">
+                  Outside of work, I explore interaction design and build{" "}
+                  experimental UI concepts. <LetsTalkTooltip />
+                </div>
               </motion.div>
 
               {/* Work Section */}
@@ -402,28 +403,7 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <SectionLabel className="mb-0">Projects</SectionLabel>
-                  <motion.div
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  >
-                    <a
-                      href="https://cal.com/rachit-thakur-qkvvw3/30min"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={cn(
-                        buttonVariants({ variant: "outline", size: "sm" }),
-                        "rounded-full h-7 px-3 text-[12px] font-medium border border-neutral-200 dark:border-neutral-800 shadow-none bg-background text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all group cursor-pointer inline-flex items-center gap-1.5 no-underline"
-                      )}
-                    >
-                      <Calendar className="size-3.5 text-neutral-500 group-hover:text-foreground transition-colors" />
-                      <span>Book a Call</span>
-                      <ArrowUpRight className="size-3 text-neutral-400 group-hover:text-foreground transition-colors" />
-                    </a>
-                  </motion.div>
-                </div>
+                <SectionLabel>Projects</SectionLabel>
                 <div>
                   {projects.map((item, i) => (
                     <ListRow
@@ -440,8 +420,8 @@ export default function Home() {
           )}
         </AnimatePresence>
         {/* ASCIIText Footer */}
-        <footer className="relative w-full mt-20 h-[350px] sm:h-[300px] rounded-2xl overflow-hidden border border-neutral-200/80 shadow-xs bg-[#0a0a0a] flex items-center justify-center">
-          <ASCIIText text="Bye!!!" textFontSize={250} enableWaves={true} asciiFontSize={6} />
+        <footer className="relative mt-16 h-[220px] w-full overflow-hidden rounded-2xl border border-neutral-200/80 bg-[#0a0a0a] shadow-xs sm:mt-20 sm:h-[300px]">
+          <ASCIIText text="Bye!!!" textFontSize={180} enableWaves={false} asciiFontSize={6} />
         </footer>
       </div>
     </main>

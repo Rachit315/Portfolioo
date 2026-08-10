@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,10 +14,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const nothingFont = localFont({
+  src: "../nothing-font.otf",
+  variable: "--font-nothing",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.northofzero.dev"),
+  icons: {
+    icon: "/Logo%20(1).png",
+    shortcut: "/Logo%20(1).png",
+    apple: "/Logo%20(1).png",
+  },
   title: {
-    default: "Rachit Thakur — Product Designer & Design Engineer",
+    default: "Rachit Thakur — Product Designer",
     template: "%s | Rachit Thakur",
   },
   description:
@@ -111,9 +123,15 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${nothingFont.variable} h-full antialiased`}
     >
       <head>
+        <link rel="icon" href="/Logo%20(1).png" type="image/png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => { const title = document.title; document.addEventListener("visibilitychange", () => { document.title = document.hidden ? "Bored of me???" : title; }); })();`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
