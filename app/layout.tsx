@@ -28,8 +28,8 @@ export const metadata: Metadata = {
     apple: "/Logo%20(1).png",
   },
   title: {
-    default: "Rachit Thakur — Product Designer",
-    template: "%s | Rachit Thakur",
+    default: "Rachit Thakur",
+    template: "%s",
   },
   description:
     "Product Designer at North of Zero specializing in Design Engineering, Product building, and Interaction Design. Based in India, studying B.Tech in Data Science.",
@@ -129,7 +129,7 @@ export default function RootLayout({
         <link rel="icon" href="/Logo%20(1).png" type="image/png" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(() => { const title = document.title; document.addEventListener("visibilitychange", () => { document.title = document.hidden ? "Bored of me???" : title; }); })();`,
+            __html: `(() => { let prevTitle = document.title; document.addEventListener("visibilitychange", () => { if (document.hidden) { prevTitle = document.title; document.title = "Bored of me???"; } else { document.title = prevTitle; } }); })();`,
           }}
         />
         <script

@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import * as motion from "motion/react-client";
 import { AnimatePresence } from "motion/react";
 import { useState, useRef } from "react";
@@ -18,19 +20,13 @@ const workExperience = [
   { name: "ZZ Studio", year: "2025", href: "https://zzstudio.design/" },
 ];
 
-const figmaUrl =
-  "https://www.figma.com/design/OvqW4VEF4Y6brvmXvfXWXZ/Rachit?node-id=0-1&t=TBJV3TCpKVVgb2N7-1";
-
 const projects = [
-  { name: "Collar AI", year: "2026", href: figmaUrl },
-  { name: "Sentine", year: "2026", href: figmaUrl },
-  { name: "CareMetric", year: "2026", href: figmaUrl },
-  { name: "Quanto", year: "2026", href: figmaUrl },
-  { name: "Aman Portfolio", year: "2026", href: figmaUrl },
-  { name: "Mark Z", year: "2025", href: figmaUrl },
-  { name: "GetCitedIn", year: "2025", href: figmaUrl },
-  { name: "Aurevia Homes", year: "2025", href: figmaUrl },
-  { name: "Kourt Kings", year: "2025", href: figmaUrl },
+  { name: "Collar", year: "2026", href: "/projects/collar", image: "/Projects/Collar/Hero.png" },
+  { name: "Portfolio", year: "2026", href: "/projects/portfolio", image: "/Projects/Portfolio/Hero.png" },
+  { name: "Quanto", year: "2026", href: "/projects/quanto", image: "/Projects/Quanto/Hero.png" },
+  { name: "CareMetric", year: "2026", href: "/projects/caremetric", image: "/Projects/CareMetric/Hero.png" },
+  { name: "Mark Z", year: "2025", href: "/projects/mark-z", image: "/Projects/Mark%20Z/Hero%202.png" },
+  { name: "Kourt king", year: "2025", href: "/projects/kourt-king", image: "/Projects/Kourt%20king/Hero.png" },
 ];
 
 const designEngineerVideos = [
@@ -68,18 +64,21 @@ function ListRow({
   year,
   index,
   href,
+  image,
 }: {
   name: string;
   year: string;
   index: number;
   href?: string;
+  image?: string;
 }) {
   const [isHovered, setIsHovered] = useState(false);
 
   const content = (
     <div
-      className={`flex items-center justify-between py-3 border-t border-border group ${href ? "cursor-pointer" : "cursor-default"
-        }`}
+      className={`relative flex items-center justify-between py-3 border-t border-border group ${
+        href ? "cursor-pointer" : "cursor-default"
+      }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -97,8 +96,41 @@ function ListRow({
       >
         {year}
       </motion.span>
+
+      {/* Micro-interaction Hero Tooltip */}
+      <AnimatePresence>
+        {isHovered && image && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, x: -10 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.88, x: -10 }}
+            transition={{ type: "spring", stiffness: 420, damping: 26 }}
+            className="hidden sm:flex absolute left-full top-1/2 -translate-y-1/2 ml-4 items-center z-50 pointer-events-none drop-shadow-md"
+          >
+            {/* Triangle Pointer pointing directly at the project row */}
+            <div
+              className="w-0 h-0 border-y-[7px] border-y-transparent border-r-[9px] border-r-foreground -mr-[0.5px] shrink-0"
+              aria-hidden="true"
+            />
+
+            {/* Project Hero Card with Thick Border matching Figma spec */}
+            <div className="relative w-[210px] h-[130px] sm:w-[240px] sm:h-[150px] border-[3.5px] border-foreground bg-black overflow-hidden shrink-0 shadow-sm">
+              <Image
+                src={image}
+                alt={`${name} project preview`}
+                fill
+                sizes="240px"
+                className="w-full h-full object-cover object-top transition-all duration-300"
+                priority
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
+
+  const isInternalLink = href?.startsWith("/");
 
   return (
     <motion.div
@@ -111,14 +143,20 @@ function ListRow({
       }}
     >
       {href ? (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block no-underline text-inherit"
-        >
-          {content}
-        </a>
+        isInternalLink ? (
+          <Link href={href} className="block no-underline text-inherit">
+            {content}
+          </Link>
+        ) : (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block no-underline text-inherit"
+          >
+            {content}
+          </a>
+        )
       ) : (
         content
       )}
@@ -412,6 +450,7 @@ export default function Home() {
                       year={item.year}
                       index={i}
                       href={item.href}
+                      image={item.image}
                     />
                   ))}
                 </div>
