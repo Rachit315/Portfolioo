@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import localFont from "next/font/local";
+import { PullCordSwitch } from "@/components/PullCordSwitch";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -56,10 +57,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/Profile.png",
+        url: "/Meta.png",
         width: 1200,
         height: 630,
-        alt: "Rachit Thakur - Product Designer",
+        alt: "Rachit Thakur — Product Designer & Design Engineer",
       },
     ],
   },
@@ -69,7 +70,7 @@ export const metadata: Metadata = {
     description:
       "Product Designer at North of Zero. Specializing in Design Engineering and Product building.",
     creator: "@RachitThakur146",
-    images: ["/Profile.png"],
+    images: ["/Meta.png"],
   },
   robots: {
     index: true,
@@ -123,13 +124,33 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${nothingFont.variable} h-full antialiased`}
     >
       <head>
         <link rel="icon" href="/Logo%20(1).png" type="image/png" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(() => { let prevTitle = document.title; document.addEventListener("visibilitychange", () => { if (document.hidden) { prevTitle = document.title; document.title = "Bored of me???"; } else { document.title = prevTitle; } }); })();`,
+            __html: `(() => {
+              try {
+                const stored = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (stored === 'dark' || (!stored && prefersDark)) {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                }
+              } catch(e) {}
+              let prevTitle = document.title;
+              document.addEventListener("visibilitychange", () => {
+                if (document.hidden) {
+                  prevTitle = document.title;
+                  document.title = "Bored of me???";
+                } else {
+                  document.title = prevTitle;
+                }
+              });
+            })();`,
           }}
         />
         <script
@@ -137,7 +158,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-300">
+        <PullCordSwitch />
         {children}
         <Analytics />
       </body>

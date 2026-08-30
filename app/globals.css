@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark, .dark *));
 
 :root {
   --muted: oklch(0.97 0 0);
@@ -140,6 +140,7 @@ body {
 }
 
 .dark {
+  --highlight-bg: #222222;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -173,12 +174,34 @@ body {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.dark ::selection {
+  background: #ffffff;
+  color: #000000;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #121212;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #383838;
+  border: 2px solid #121212;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #505050;
+}
+
+.dark * {
+  scrollbar-color: #383838 #121212;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
   }
   html {
     @apply font-sans;

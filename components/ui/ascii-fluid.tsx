@@ -37,8 +37,8 @@ export type AsciiFluidProps = {
 const DEFAULT_CHARSET =
   " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
 
-const LIGHT = { ink: "#18181b", paper: "#fafafa" }
-const DARK = { ink: "#e4e4e7", paper: "#09090b" }
+const LIGHT = { ink: "#121212", paper: "#ffffff" }
+const DARK = { ink: "#f5f5f5", paper: "#000000" }
 
 const VERT = `
 attribute vec2 a_position;
@@ -236,13 +236,7 @@ function hexToRgb(hex: string): [number, number, number] {
 
 function isDarkTheme(): boolean {
   if (typeof document === "undefined") return false
-  const root = document.documentElement
-  if (root.classList.contains("dark")) return true
-  if (root.classList.contains("light")) return false
-  const dataTheme = root.getAttribute("data-theme")
-  if (dataTheme === "dark") return true
-  if (dataTheme === "light") return false
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
+  return document.documentElement.classList.contains("dark")
 }
 
 function resolveDark(theme: "light" | "dark" | "auto"): boolean {

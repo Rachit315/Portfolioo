@@ -281,8 +281,6 @@ export default function Home() {
     <main className="relative min-h-screen flex justify-center overflow-x-hidden px-4 py-8 sm:px-6 sm:py-16 md:py-24">
       <AsciiFluid
         className="fixed inset-0 -z-10 w-full h-full"
-        color="#121212"
-        backgroundColor="#FFFFFF"
         cellSize={6}
         force={0.2}
         dissipation={0.09}

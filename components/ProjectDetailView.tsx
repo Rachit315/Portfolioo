@@ -26,8 +26,6 @@ export function ProjectDetailView({ project }: ProjectDetailViewProps) {
     <main className="relative min-h-screen flex justify-center overflow-x-hidden px-4 py-8 sm:px-6 sm:py-16 md:py-24">
       <AsciiFluid
         className="fixed inset-0 -z-10 w-full h-full"
-        color="#121212"
-        backgroundColor="#FFFFFF"
         cellSize={6}
         force={0.2}
         dissipation={0.09}
@@ -81,15 +79,15 @@ export function ProjectDetailView({ project }: ProjectDetailViewProps) {
             {project.name}
           </h1>
 
-          <p className="text-lg sm:text-xl text-neutral-600 font-normal leading-snug mb-5">
+          <p className="text-lg sm:text-xl text-neutral-600 dark:text-neutral-400 font-normal leading-snug mb-5">
             {project.tagline}
           </p>
 
-          <div className="p-4 sm:p-5 rounded-none bg-neutral-50/80 border border-neutral-200/80 backdrop-blur-xs">
+          <div className="p-4 sm:p-5 rounded-none bg-neutral-50/80 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-800 backdrop-blur-xs">
             <h2 className="text-[12px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
               Project Overview
             </h2>
-            <p className="text-[15px] leading-[1.7] text-neutral-800">
+            <p className="text-[15px] leading-[1.7] text-neutral-800 dark:text-neutral-200">
               {project.description}
             </p>
           </div>
@@ -130,7 +128,7 @@ export function ProjectDetailView({ project }: ProjectDetailViewProps) {
               {/* Screen Image Frame with 0px radius */}
               <div
                 onClick={() => setSelectedScreenIndex(index)}
-                className="relative w-full rounded-none overflow-hidden bg-white border border-neutral-200/90 shadow-xs cursor-zoom-in group-hover:border-neutral-400 transition-all duration-300 group-hover:shadow-sm"
+                className="relative w-full rounded-none overflow-hidden bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 shadow-xs cursor-zoom-in group-hover:border-neutral-400 dark:group-hover:border-neutral-600 transition-all duration-300 group-hover:shadow-sm"
               >
                 <Image
                   src={screen.src}
@@ -161,7 +159,7 @@ export function ProjectDetailView({ project }: ProjectDetailViewProps) {
         >
           <Link
             href={`/projects/${prevProject.slug}`}
-            className="flex items-center gap-2 text-[14px] text-neutral-500 hover:text-foreground transition-colors duration-200 no-underline py-2 px-3 rounded-none hover:bg-neutral-100/70"
+            className="flex items-center gap-2 text-[14px] text-neutral-500 hover:text-foreground transition-colors duration-200 no-underline py-2 px-3 rounded-none hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70"
           >
             <ChevronLeft className="w-4 h-4" />
             <div className="text-left">
@@ -179,7 +177,7 @@ export function ProjectDetailView({ project }: ProjectDetailViewProps) {
 
           <Link
             href={`/projects/${nextProject.slug}`}
-            className="flex items-center gap-2 text-[14px] text-neutral-500 hover:text-foreground transition-colors duration-200 no-underline py-2 px-3 rounded-none hover:bg-neutral-100/70"
+            className="flex items-center gap-2 text-[14px] text-neutral-500 hover:text-foreground transition-colors duration-200 no-underline py-2 px-3 rounded-none hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70"
           >
             <div className="text-right">
               <div className="text-[11px] font-mono text-neutral-400">NEXT</div>
