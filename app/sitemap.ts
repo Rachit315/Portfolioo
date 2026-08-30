@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
 import { projectsData } from "@/lib/projects";
+import { SITE_URL } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const projectEntries: MetadataRoute.Sitemap = projectsData.map((project) => ({
-    url: `https://www.northofzero.dev/projects/${project.slug}`,
+    url: `${SITE_URL}/projects/${project.slug}`,
     lastModified: new Date(),
     changeFrequency: "weekly",
     priority: 0.8,
@@ -11,7 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     {
-      url: "https://www.northofzero.dev",
+      url: SITE_URL,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 1.0,
@@ -19,4 +20,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...projectEntries,
   ];
 }
+
 

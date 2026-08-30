@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import localFont from "next/font/local";
 import { PullCordSwitch } from "@/components/PullCordSwitch";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,15 +23,15 @@ const nothingFont = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.northofzero.dev"),
+  metadataBase: new URL(SITE_URL),
   icons: {
     icon: "/Logo%20(1).png",
     shortcut: "/Logo%20(1).png",
     apple: "/Logo%20(1).png",
   },
   title: {
-    default: "Rachit Thakur",
-    template: "%s",
+    default: "Rachit Thakur — Product Designer & Design Engineer",
+    template: "%s | Rachit Thakur",
   },
   description:
     "Product Designer at North of Zero specializing in Design Engineering, Product building, and Interaction Design. Based in India, studying B.Tech in Data Science.",
@@ -51,7 +52,7 @@ export const metadata: Metadata = {
     title: "Rachit Thakur — Product Designer & Design Engineer",
     description:
       "Product Designer at North of Zero. Crafting interactions, design engineering, and product experiences.",
-    url: "https://www.northofzero.dev",
+    url: SITE_URL,
     siteName: "Rachit Thakur Portfolio",
     locale: "en_US",
     type: "website",
@@ -60,6 +61,7 @@ export const metadata: Metadata = {
         url: "/Meta.png",
         width: 1200,
         height: 630,
+        type: "image/png",
         alt: "Rachit Thakur — Product Designer & Design Engineer",
       },
     ],
@@ -68,9 +70,17 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Rachit Thakur — Product Designer & Design Engineer",
     description:
-      "Product Designer at North of Zero. Specializing in Design Engineering and Product building.",
+      "Product Designer at North of Zero. Crafting interactions, design engineering, and product experiences.",
     creator: "@RachitThakur146",
-    images: ["/Meta.png"],
+    site: "@RachitThakur146",
+    images: [
+      {
+        url: "/Meta.png",
+        width: 1200,
+        height: 630,
+        alt: "Rachit Thakur — Product Designer & Design Engineer",
+      },
+    ],
   },
   robots: {
     index: true,
@@ -84,7 +94,7 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://www.northofzero.dev",
+    canonical: SITE_URL,
   },
 };
 
@@ -95,7 +105,8 @@ const jsonLd = {
   jobTitle: "Product Designer",
   description:
     "Product Designer at North of Zero specializing in Design Engineering, Product building, and Interaction Design.",
-  url: "https://www.northofzero.dev",
+  url: SITE_URL,
+  image: `${SITE_URL}/Meta.png`,
   worksFor: {
     "@type": "Organization",
     name: "North of Zero",
