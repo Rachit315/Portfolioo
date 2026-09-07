@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -26,6 +26,13 @@ export type AsciiFluidProps = {
   animate?: boolean
   /** Follow pointer. Default `true` */
   interactive?: boolean
+  /**
+   * Skip the GPU simulation on touch / low-power devices and paint a flat
+   * stage instead. There is no hover trail to see on a phone, and the solve
+   * is what pushes mobile Safari into throttling and context loss.
+   * Default `true`.
+   */
+  disableOnTouch?: boolean
   /**
    * Palette mode. Default `auto` follows shadcn / next-themes
    * (`html.dark` class).
@@ -263,11 +270,24 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
   return shader
 }
 
+/**
+ * A linked program with every uniform location resolved once. Resolving them
+ * per frame costs hundreds of validated GL calls a frame, which is measurably
+ * expensive in Safari's WebGL implementation.
+ */
+type Prog = {
+  program: WebGLProgram
+  fs: WebGLShader
+  u: Record<string, WebGLUniformLocation | null>
+  posLoc: number
+}
+
 function createProgram(
   gl: WebGLRenderingContext,
   vs: WebGLShader,
-  fragSource: string
-) {
+  fragSource: string,
+  uniforms: readonly string[]
+): Prog | null {
   const fs = compile(gl, gl.FRAGMENT_SHADER, fragSource)
   if (!fs) return null
   const program = gl.createProgram()
@@ -289,7 +309,9 @@ function createProgram(
     gl.deleteShader(fs)
     return null
   }
-  return { program, fs }
+  const u: Record<string, WebGLUniformLocation | null> = {}
+  for (const name of uniforms) u[name] = gl.getUniformLocation(program, name)
+  return { program, fs, u, posLoc: gl.getAttribLocation(program, "a_position") }
 }
 
 type FBO = {
@@ -392,6 +414,29 @@ function buildAtlas(
   return { tex, count }
 }
 
+/** Coarse pointer (phone / tablet) — no hover trail is possible there. */
+function isTouchOnly() {
+  if (typeof window === "undefined") return false
+  return (
+    window.matchMedia("(hover: none)").matches ||
+    window.matchMedia("(pointer: coarse)").matches
+  )
+}
+
+/**
+ * Devices that cannot sustain a 20-pass fluid solve at 60fps. Mobile Safari
+ * exposes no `deviceMemory`, so fall back to core count.
+ */
+function isLowPower() {
+  if (typeof navigator === "undefined") return false
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+  if (typeof mem === "number" && mem <= 4) return true
+  if (typeof navigator.hardwareConcurrency === "number") {
+    return navigator.hardwareConcurrency <= 4
+  }
+  return false
+}
+
 /**
  * ASCII fluid background — pointer trails leave ink that swirls and
  * quantizes to a clean brightness-mapped glyph field. Zero deps.
@@ -407,9 +452,15 @@ export function AsciiFluid({
   brush = 0.55,
   animate = true,
   interactive = true,
+  disableOnTouch = true,
   theme = "auto",
 }: AsciiFluidProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Both resolved on the client only, so SSR and the first paint agree.
+  const [enabled, setEnabled] = useState(false)
+  const [dark, setDark] = useState(false)
+
   const propsRef = useRef({
     charset,
     cellSize,
@@ -448,40 +499,119 @@ export function AsciiFluid({
   })
   const reduceRef = useRef(false)
   const charsetRef = useRef("")
+  const darkRef = useRef(false)
+
+  // Track the palette off the animation loop rather than reading `classList`
+  // on every single frame.
+  useEffect(() => {
+    const sync = () => {
+      const next = resolveDark(propsRef.current.theme)
+      darkRef.current = next
+      setDark(next)
+    }
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    })
+    return () => observer.disconnect()
+  }, [theme])
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
-    reduceRef.current = mq.matches
-    const onChange = () => {
+    const apply = () => {
       reduceRef.current = mq.matches
+      // A flat stage is the honest reading of "reduce motion" here, and it
+      // drops the entire GPU cost on devices that cannot afford it.
+      setEnabled(
+        !mq.matches && !(disableOnTouch && (isTouchOnly() || isLowPower()))
+      )
     }
-    mq.addEventListener("change", onChange)
-    return () => mq.removeEventListener("change", onChange)
-  }, [])
+    apply()
+    mq.addEventListener("change", apply)
+    return () => mq.removeEventListener("change", apply)
+  }, [disableOnTouch])
 
   useEffect(() => {
+    if (!enabled) return
     const canvas = canvasRef.current
     if (!canvas) return
 
+    // `alpha: true` means a lost or never-initialised context shows the
+    // wrapper's paper colour instead of an opaque black rectangle.
     const gl = canvas.getContext("webgl", {
-      alpha: false,
+      alpha: true,
       antialias: false,
       depth: false,
       stencil: false,
-      powerPreference: "high-performance",
+      premultipliedAlpha: false,
+      powerPreference: "low-power",
       preserveDrawingBuffer: false,
     })
     if (!gl) return
 
+    // Safari's watchdog kills WebGL contexts under sustained GPU load, and
+    // without these handlers the canvas keeps a dead frame forever.
+    let contextLost = false
+    const onLost = (e: Event) => {
+      e.preventDefault()
+      contextLost = true
+      cancelAnimationFrame(raf)
+    }
+    const onRestored = () => {
+      contextLost = false
+      // Programs and textures are gone; a remount rebuilds them cleanly.
+      setEnabled(false)
+      requestAnimationFrame(() => setEnabled(true))
+    }
+    canvas.addEventListener("webglcontextlost", onLost, false)
+    canvas.addEventListener("webglcontextrestored", onRestored, false)
+
     const vs = compile(gl, gl.VERTEX_SHADER, VERT)
     if (!vs) return
 
-    const splat = createProgram(gl, vs, FRAG_SPLAT)
-    const advect = createProgram(gl, vs, FRAG_ADVECT)
-    const divergence = createProgram(gl, vs, FRAG_DIVERGENCE)
-    const pressure = createProgram(gl, vs, FRAG_PRESSURE)
-    const gradient = createProgram(gl, vs, FRAG_GRADIENT)
-    const display = createProgram(gl, vs, FRAG_DISPLAY)
+    const splat = createProgram(gl, vs, FRAG_SPLAT, [
+      "u_target",
+      "u_point",
+      "u_color",
+      "u_radius",
+      "u_aspect",
+      "u_velocityField",
+    ])
+    const advect = createProgram(gl, vs, FRAG_ADVECT, [
+      "u_velocity",
+      "u_source",
+      "u_texel",
+      "u_dt",
+      "u_dissipation",
+      "u_velocityField",
+    ])
+    const divergence = createProgram(gl, vs, FRAG_DIVERGENCE, [
+      "u_velocity",
+      "u_texel",
+    ])
+    const pressure = createProgram(gl, vs, FRAG_PRESSURE, [
+      "u_pressure",
+      "u_divergence",
+      "u_texel",
+    ])
+    const gradient = createProgram(gl, vs, FRAG_GRADIENT, [
+      "u_pressure",
+      "u_velocity",
+      "u_texel",
+    ])
+    const display = createProgram(gl, vs, FRAG_DISPLAY, [
+      "u_dye",
+      "u_atlas",
+      "u_resolution",
+      "u_cell",
+      "u_charCount",
+      "u_ink",
+      "u_paper",
+      "u_time",
+      "u_animate",
+    ])
     if (
       !splat ||
       !advect ||
@@ -501,14 +631,20 @@ export function AsciiFluid({
       gl.STATIC_DRAW
     )
 
-    const bindQuad = (program: WebGLProgram) => {
-      gl.useProgram(program)
-      const loc = gl.getAttribLocation(program, "a_position")
-      gl.enableVertexAttribArray(loc)
-      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
+    const bindQuad = (p: Prog) => {
+      gl.useProgram(p.program)
+      gl.enableVertexAttribArray(p.posLoc)
+      gl.vertexAttribPointer(p.posLoc, 2, gl.FLOAT, false, 0, 0)
     }
 
-    const SIM = 180
+    // Quality budget. The solve is O(SIM² × iterations), so trimming both on a
+    // weak GPU cuts the per-frame cost by roughly an order of magnitude.
+    const lowPower = isLowPower()
+    const SIM = lowPower ? 96 : 160
+    const PRESSURE_ITER = lowPower ? 6 : 10
+    const MAX_DPR = lowPower ? 1 : 1.5
+    const FRAME_MS = 1000 / 40 // a background wash does not need 60fps
+
     const velocity = createDoubleFBO(gl, SIM, SIM, gl.LINEAR)
     const dye = createDoubleFBO(gl, SIM, SIM, gl.LINEAR)
     const pressureFbo = createDoubleFBO(gl, SIM, SIM, gl.NEAREST)
@@ -545,24 +681,45 @@ export function AsciiFluid({
 
     let raf = 0
     let running = true
+    let visible = true
+    let onScreen = true
     let last = performance.now()
     const start = last
+    let lastFrame = 0
+    // Frames of simulation still owed after the last pointer input. The dye
+    // decays geometrically, so ~2s of solve settles it; past that the field is
+    // uniform and re-solving it is wasted GPU time.
+    let settleFrames = 0
+    let needsDisplay = true
 
+    let cssW = 0
+    let cssH = 0
     const resize = () => {
       const parent = canvas.parentElement
       if (!parent) return
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
       const w = parent.clientWidth
       const h = parent.clientHeight
       if (w <= 0 || h <= 0) return
+      // Mobile Safari resizes the viewport every time the URL bar collapses
+      // mid-scroll. Reallocating the drawing buffer on each of those is what
+      // makes the background strobe, so ignore small height-only churn.
+      if (w === cssW && Math.abs(h - cssH) < 120) return
+      cssW = w
+      cssH = h
       canvas.width = Math.max(1, Math.floor(w * dpr))
       canvas.height = Math.max(1, Math.floor(h * dpr))
       canvas.style.width = `${w}px`
       canvas.style.height = `${h}px`
+      needsDisplay = true
     }
 
     resize()
-    const ro = new ResizeObserver(resize)
+    let resizeTimer = 0
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(resize, 120)
+    })
     if (canvas.parentElement) ro.observe(canvas.parentElement)
 
     const onPointer = (e: PointerEvent) => {
@@ -580,6 +737,9 @@ export function AsciiFluid({
       m.x = x
       m.y = y
       m.moved = true
+      settleFrames = 80
+      // Pointer input can arrive while the loop is parked mid-idle.
+      schedule()
     }
     const onLeave = () => {
       mouseRef.current.inside = false
@@ -589,10 +749,50 @@ export function AsciiFluid({
     const parentEl = canvas.parentElement
     parentEl?.addEventListener("pointerleave", onLeave, { passive: true })
 
+    // The loop parks itself whenever the tab is hidden or the background is
+    // scrolled away, and both listeners below can restart it. `scheduled`
+    // keeps that from ever leaving two rAF chains running at once.
+    let scheduled = false
+    const schedule = () => {
+      if (scheduled || !running || contextLost || !visible || !onScreen) return
+      scheduled = true
+      raf = requestAnimationFrame(tick)
+    }
+    const resume = () => {
+      if (!visible || !onScreen) return
+      last = performance.now()
+      needsDisplay = true
+      schedule()
+    }
+
+    // Never burn GPU on a hidden tab. Safari throttles rAF unevenly there,
+    // which surfaces as a stutter the moment you switch back.
+    const onVisibility = () => {
+      visible = !document.hidden
+      resume()
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        onScreen = entry?.isIntersecting ?? true
+        resume()
+      },
+      { threshold: 0 }
+    )
+    if (parentEl) io.observe(parentEl)
+
     const tick = (now: number) => {
-      if (!running) return
+      scheduled = false
+      if (!running || contextLost) return
+      if (!visible || !onScreen) return // restarted by the listeners above
+
+      schedule()
+
+      if (now - lastFrame < FRAME_MS) return
       const dt = Math.min((now - last) / 1000, 0.033)
       last = now
+      lastFrame = now
       const time = (now - start) / 1000
       const p = propsRef.current
 
@@ -602,41 +802,42 @@ export function AsciiFluid({
           gl.deleteTexture(atlas.tex)
           atlas = next
           charsetRef.current = p.charset
+          needsDisplay = true
         }
       }
 
-      const dark = resolveDark(p.theme)
-      const ink = hexToRgb(p.color ?? (dark ? DARK.ink : LIGHT.ink))
+      const m = mouseRef.current
+      const ambient = p.animate && !reduceRef.current
+      const splatting =
+        p.interactive && m.moved && m.inside && !reduceRef.current
+      const simulate = ambient || splatting || settleFrames > 0
+
+      // Idle and already settled: nothing on screen can change, so skip the
+      // whole 20-pass solve and the redraw.
+      if (!simulate && !needsDisplay) return
+
+      const ink = hexToRgb(p.color ?? (darkRef.current ? DARK.ink : LIGHT.ink))
       const paper = hexToRgb(
-        p.backgroundColor ?? (dark ? DARK.paper : LIGHT.paper)
+        p.backgroundColor ?? (darkRef.current ? DARK.paper : LIGHT.paper)
       )
       const texel = [1 / SIM, 1 / SIM] as const
       const aspect = canvas.width / Math.max(canvas.height, 1)
-      const m = mouseRef.current
       const brushR = 0.00012 + Math.max(0.05, Math.min(1, p.brush)) * 0.0011
 
-      if (p.interactive && m.moved && m.inside && !reduceRef.current) {
+      if (splatting) {
         const speed = Math.hypot(m.dx, m.dy)
         const strength = p.force * (18 + speed * 120)
 
         // Velocity trail
-        bindQuad(splat.program)
+        bindQuad(splat)
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, velocity.read.tex)
-        gl.uniform1i(gl.getUniformLocation(splat.program, "u_target"), 0)
-        gl.uniform2f(gl.getUniformLocation(splat.program, "u_point"), m.x, m.y)
-        gl.uniform3f(
-          gl.getUniformLocation(splat.program, "u_color"),
-          m.dx * strength,
-          m.dy * strength,
-          0
-        )
-        gl.uniform1f(gl.getUniformLocation(splat.program, "u_radius"), brushR)
-        gl.uniform1f(gl.getUniformLocation(splat.program, "u_aspect"), aspect)
-        gl.uniform1f(
-          gl.getUniformLocation(splat.program, "u_velocityField"),
-          1
-        )
+        gl.uniform1i(splat.u.u_target, 0)
+        gl.uniform2f(splat.u.u_point, m.x, m.y)
+        gl.uniform3f(splat.u.u_color, m.dx * strength, m.dy * strength, 0)
+        gl.uniform1f(splat.u.u_radius, brushR)
+        gl.uniform1f(splat.u.u_aspect, aspect)
+        gl.uniform1f(splat.u.u_velocityField, 1)
         blit(velocity.write)
         velocity.swap()
 
@@ -644,23 +845,12 @@ export function AsciiFluid({
         const dyeAmt = Math.min(1.4, 0.45 + speed * 8) * p.force
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, dye.read.tex)
-        gl.uniform1i(gl.getUniformLocation(splat.program, "u_target"), 0)
-        gl.uniform2f(gl.getUniformLocation(splat.program, "u_point"), m.x, m.y)
-        gl.uniform3f(
-          gl.getUniformLocation(splat.program, "u_color"),
-          dyeAmt,
-          0,
-          0
-        )
-        gl.uniform1f(
-          gl.getUniformLocation(splat.program, "u_radius"),
-          brushR * 1.15
-        )
-        gl.uniform1f(gl.getUniformLocation(splat.program, "u_aspect"), aspect)
-        gl.uniform1f(
-          gl.getUniformLocation(splat.program, "u_velocityField"),
-          0
-        )
+        gl.uniform1i(splat.u.u_target, 0)
+        gl.uniform2f(splat.u.u_point, m.x, m.y)
+        gl.uniform3f(splat.u.u_color, dyeAmt, 0, 0)
+        gl.uniform1f(splat.u.u_radius, brushR * 1.15)
+        gl.uniform1f(splat.u.u_aspect, aspect)
+        gl.uniform1f(splat.u.u_velocityField, 0)
         blit(dye.write)
         dye.swap()
 
@@ -670,195 +860,146 @@ export function AsciiFluid({
       }
 
       // Soft ambient swirl so the field never fully dies when idle
-      if (p.animate && !reduceRef.current && !m.inside) {
+      if (ambient && !m.inside) {
         const ax = Math.sin(time * 0.55) * 0.22
         const ay = Math.cos(time * 0.42) * 0.22
-        bindQuad(splat.program)
+        bindQuad(splat)
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, velocity.read.tex)
-        gl.uniform1i(gl.getUniformLocation(splat.program, "u_target"), 0)
+        gl.uniform1i(splat.u.u_target, 0)
         gl.uniform2f(
-          gl.getUniformLocation(splat.program, "u_point"),
+          splat.u.u_point,
           0.5 + Math.sin(time * 0.23) * 0.22,
           0.5 + Math.cos(time * 0.19) * 0.18
         )
-        gl.uniform3f(gl.getUniformLocation(splat.program, "u_color"), ax, ay, 0)
-        gl.uniform1f(gl.getUniformLocation(splat.program, "u_radius"), 0.0018)
-        gl.uniform1f(gl.getUniformLocation(splat.program, "u_aspect"), aspect)
-        gl.uniform1f(
-          gl.getUniformLocation(splat.program, "u_velocityField"),
-          1
-        )
+        gl.uniform3f(splat.u.u_color, ax, ay, 0)
+        gl.uniform1f(splat.u.u_radius, 0.0018)
+        gl.uniform1f(splat.u.u_aspect, aspect)
+        gl.uniform1f(splat.u.u_velocityField, 1)
         blit(velocity.write)
         velocity.swap()
       }
 
-      if (!reduceRef.current) {
-        bindQuad(advect.program)
+      if (simulate) {
+        if (settleFrames > 0) settleFrames--
+
+        bindQuad(advect)
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, velocity.read.tex)
-        gl.uniform1i(gl.getUniformLocation(advect.program, "u_velocity"), 0)
+        gl.uniform1i(advect.u.u_velocity, 0)
         gl.activeTexture(gl.TEXTURE1)
         gl.bindTexture(gl.TEXTURE_2D, velocity.read.tex)
-        gl.uniform1i(gl.getUniformLocation(advect.program, "u_source"), 1)
-        gl.uniform2f(
-          gl.getUniformLocation(advect.program, "u_texel"),
-          texel[0],
-          texel[1]
-        )
-        gl.uniform1f(gl.getUniformLocation(advect.program, "u_dt"), dt)
+        gl.uniform1i(advect.u.u_source, 1)
+        gl.uniform2f(advect.u.u_texel, texel[0], texel[1])
+        gl.uniform1f(advect.u.u_dt, dt)
         gl.uniform1f(
-          gl.getUniformLocation(advect.program, "u_dissipation"),
+          advect.u.u_dissipation,
           1 - Math.min(0.18, p.dissipation * 2.5)
         )
-        gl.uniform1f(
-          gl.getUniformLocation(advect.program, "u_velocityField"),
-          1
-        )
+        gl.uniform1f(advect.u.u_velocityField, 1)
         blit(velocity.write)
         velocity.swap()
 
-        bindQuad(divergence.program)
+        bindQuad(divergence)
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, velocity.read.tex)
-        gl.uniform1i(
-          gl.getUniformLocation(divergence.program, "u_velocity"),
-          0
-        )
-        gl.uniform2f(
-          gl.getUniformLocation(divergence.program, "u_texel"),
-          texel[0],
-          texel[1]
-        )
+        gl.uniform1i(divergence.u.u_velocity, 0)
+        gl.uniform2f(divergence.u.u_texel, texel[0], texel[1])
         blit(divergenceFbo)
 
         clearFbo(pressureFbo.read, 0.5, 0.5, 0.5)
         clearFbo(pressureFbo.write, 0.5, 0.5, 0.5)
-        bindQuad(pressure.program)
-        for (let i = 0; i < 14; i++) {
+        // Uniforms and the divergence binding are identical across every
+        // Jacobi iteration, so set them once outside the loop.
+        bindQuad(pressure)
+        gl.uniform2f(pressure.u.u_texel, texel[0], texel[1])
+        gl.uniform1i(pressure.u.u_pressure, 0)
+        gl.uniform1i(pressure.u.u_divergence, 1)
+        gl.activeTexture(gl.TEXTURE1)
+        gl.bindTexture(gl.TEXTURE_2D, divergenceFbo.tex)
+        for (let i = 0; i < PRESSURE_ITER; i++) {
           gl.activeTexture(gl.TEXTURE0)
           gl.bindTexture(gl.TEXTURE_2D, pressureFbo.read.tex)
-          gl.uniform1i(
-            gl.getUniformLocation(pressure.program, "u_pressure"),
-            0
-          )
-          gl.activeTexture(gl.TEXTURE1)
-          gl.bindTexture(gl.TEXTURE_2D, divergenceFbo.tex)
-          gl.uniform1i(
-            gl.getUniformLocation(pressure.program, "u_divergence"),
-            1
-          )
-          gl.uniform2f(
-            gl.getUniformLocation(pressure.program, "u_texel"),
-            texel[0],
-            texel[1]
-          )
           blit(pressureFbo.write)
           pressureFbo.swap()
         }
 
-        bindQuad(gradient.program)
+        bindQuad(gradient)
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, pressureFbo.read.tex)
-        gl.uniform1i(gl.getUniformLocation(gradient.program, "u_pressure"), 0)
+        gl.uniform1i(gradient.u.u_pressure, 0)
         gl.activeTexture(gl.TEXTURE1)
         gl.bindTexture(gl.TEXTURE_2D, velocity.read.tex)
-        gl.uniform1i(gl.getUniformLocation(gradient.program, "u_velocity"), 1)
-        gl.uniform2f(
-          gl.getUniformLocation(gradient.program, "u_texel"),
-          texel[0],
-          texel[1]
-        )
+        gl.uniform1i(gradient.u.u_velocity, 1)
+        gl.uniform2f(gradient.u.u_texel, texel[0], texel[1])
         blit(velocity.write)
         velocity.swap()
 
-        bindQuad(advect.program)
+        bindQuad(advect)
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, velocity.read.tex)
-        gl.uniform1i(gl.getUniformLocation(advect.program, "u_velocity"), 0)
+        gl.uniform1i(advect.u.u_velocity, 0)
         gl.activeTexture(gl.TEXTURE1)
         gl.bindTexture(gl.TEXTURE_2D, dye.read.tex)
-        gl.uniform1i(gl.getUniformLocation(advect.program, "u_source"), 1)
-        gl.uniform2f(
-          gl.getUniformLocation(advect.program, "u_texel"),
-          texel[0],
-          texel[1]
-        )
-        gl.uniform1f(gl.getUniformLocation(advect.program, "u_dt"), dt)
+        gl.uniform1i(advect.u.u_source, 1)
+        gl.uniform2f(advect.u.u_texel, texel[0], texel[1])
+        gl.uniform1f(advect.u.u_dt, dt)
         gl.uniform1f(
-          gl.getUniformLocation(advect.program, "u_dissipation"),
+          advect.u.u_dissipation,
           1 - Math.min(0.22, Math.max(0.02, p.dissipation))
         )
-        gl.uniform1f(
-          gl.getUniformLocation(advect.program, "u_velocityField"),
-          0
-        )
+        gl.uniform1f(advect.u.u_velocityField, 0)
         blit(dye.write)
         dye.swap()
       }
 
-      bindQuad(display.program)
+      bindQuad(display)
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, dye.read.tex)
-      gl.uniform1i(gl.getUniformLocation(display.program, "u_dye"), 0)
+      gl.uniform1i(display.u.u_dye, 0)
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, atlas.tex)
-      gl.uniform1i(gl.getUniformLocation(display.program, "u_atlas"), 1)
-      gl.uniform2f(
-        gl.getUniformLocation(display.program, "u_resolution"),
-        canvas.width,
-        canvas.height
-      )
+      gl.uniform1i(display.u.u_atlas, 1)
+      gl.uniform2f(display.u.u_resolution, canvas.width, canvas.height)
       const cell =
-        Math.max(7, p.cellSize) * Math.min(window.devicePixelRatio || 1, 2)
-      gl.uniform2f(gl.getUniformLocation(display.program, "u_cell"), cell, cell)
-      gl.uniform1f(
-        gl.getUniformLocation(display.program, "u_charCount"),
-        atlas.count
-      )
-      gl.uniform3f(
-        gl.getUniformLocation(display.program, "u_ink"),
-        ink[0],
-        ink[1],
-        ink[2]
-      )
-      gl.uniform3f(
-        gl.getUniformLocation(display.program, "u_paper"),
-        paper[0],
-        paper[1],
-        paper[2]
-      )
-      gl.uniform1f(gl.getUniformLocation(display.program, "u_time"), time)
-      gl.uniform1f(
-        gl.getUniformLocation(display.program, "u_animate"),
-        p.animate && !reduceRef.current ? 1 : 0
-      )
+        Math.max(7, p.cellSize) *
+        Math.min(window.devicePixelRatio || 1, MAX_DPR)
+      gl.uniform2f(display.u.u_cell, cell, cell)
+      gl.uniform1f(display.u.u_charCount, atlas.count)
+      gl.uniform3f(display.u.u_ink, ink[0], ink[1], ink[2])
+      gl.uniform3f(display.u.u_paper, paper[0], paper[1], paper[2])
+      gl.uniform1f(display.u.u_time, time)
+      gl.uniform1f(display.u.u_animate, ambient ? 1 : 0)
       blit(null)
-
-      raf = requestAnimationFrame(tick)
+      needsDisplay = false
     }
 
-    raf = requestAnimationFrame(tick)
+    schedule()
 
     return () => {
       running = false
       cancelAnimationFrame(raf)
+      window.clearTimeout(resizeTimer)
       ro.disconnect()
+      io.disconnect()
+      document.removeEventListener("visibilitychange", onVisibility)
       window.removeEventListener("pointermove", onPointer)
       parentEl?.removeEventListener("pointerleave", onLeave)
-      gl.deleteProgram(splat.program)
-      gl.deleteProgram(advect.program)
-      gl.deleteProgram(divergence.program)
-      gl.deleteProgram(pressure.program)
-      gl.deleteProgram(gradient.program)
-      gl.deleteProgram(display.program)
+      canvas.removeEventListener("webglcontextlost", onLost)
+      canvas.removeEventListener("webglcontextrestored", onRestored)
+      if (contextLost) return
+      for (const prog of [
+        splat,
+        advect,
+        divergence,
+        pressure,
+        gradient,
+        display,
+      ]) {
+        gl.deleteProgram(prog.program)
+        gl.deleteShader(prog.fs)
+      }
       gl.deleteShader(vs)
-      gl.deleteShader(splat.fs)
-      gl.deleteShader(advect.fs)
-      gl.deleteShader(divergence.fs)
-      gl.deleteShader(pressure.fs)
-      gl.deleteShader(gradient.fs)
-      gl.deleteShader(display.fs)
       gl.deleteBuffer(buf)
       gl.deleteTexture(atlas.tex)
       for (const f of [
@@ -873,19 +1014,30 @@ export function AsciiFluid({
         gl.deleteTexture(f.tex)
         gl.deleteFramebuffer(f.fbo)
       }
+      // Release the context now rather than waiting for GC — Safari caps how
+      // many live WebGL contexts a page may hold, and this page has several.
+      gl.getExtension("WEBGL_lose_context")?.loseContext()
     }
-  }, [])
+  }, [enabled])
 
   return (
     <div
       data-slot="ascii-fluid"
       aria-hidden
+      // The stage colour lives on the wrapper, so the page reads correctly
+      // before WebGL starts, if it never starts, and if the context is lost.
+      style={{
+        backgroundColor:
+          backgroundColor ?? (dark ? DARK.paper : LIGHT.paper),
+      }}
       className={cn(
         "pointer-events-none absolute inset-0 overflow-hidden",
         className
       )}
     >
-      <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+      {enabled ? (
+        <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+      ) : null}
     </div>
   )
 }

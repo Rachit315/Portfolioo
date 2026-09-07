@@ -96,8 +96,21 @@
 
 body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-  overflow-x: hidden;
+  /* `overflow-x: hidden` turns body into a scroll container in WebKit, which
+     breaks `position: fixed` descendants (the ASCII background) and causes
+     rubber-band repaint flicker on iOS. `clip` suppresses the same overflow
+     without creating a scroll container. */
+  overflow-x: clip;
   overscroll-behavior-x: none;
+  /* Stop iOS from re-flowing text when the device is rotated. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@supports not (overflow: clip) {
+  body {
+    overflow-x: hidden;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

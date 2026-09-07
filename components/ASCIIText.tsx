@@ -61,6 +61,8 @@ class AsciiFilter {
   canvas: HTMLCanvasElement;
   context: CanvasRenderingContext2D | null;
   deg = 0;
+  lastHue = NaN;
+  lastFrame = "";
   invert: boolean;
   fontSize: number;
   fontFamily: string;
@@ -98,7 +100,10 @@ class AsciiFilter {
     this.domElement.appendChild(this.pre);
 
     this.canvas = document.createElement("canvas");
-    this.context = this.canvas.getContext("2d");
+    // Every frame does a `getImageData` readback. `willReadFrequently` keeps
+    // the canvas CPU-backed, which avoids a GPU→CPU sync stall per frame —
+    // the stall that shows up as page-wide flicker in Safari.
+    this.context = this.canvas.getContext("2d", { willReadFrequently: true });
     this.domElement.appendChild(this.canvas);
 
     this.invert = invert ?? true;
@@ -113,7 +118,7 @@ class AsciiFilter {
     }
 
     this.onMouseMove = this.onMouseMove.bind(this);
-    document.addEventListener("mousemove", this.onMouseMove);
+    document.addEventListener("mousemove", this.onMouseMove, { passive: true });
   }
 
   setSize(width: number, height: number) {
@@ -147,7 +152,6 @@ class AsciiFilter {
     this.pre.style.left = "0";
     this.pre.style.top = "0";
     this.pre.style.zIndex = "9";
-    this.pre.style.backgroundAttachment = "fixed";
     this.pre.style.mixBlendMode = "difference";
   }
 
@@ -180,37 +184,47 @@ class AsciiFilter {
   hue() {
     const deg = (Math.atan2(this.dy, this.dx) * 180) / Math.PI;
     this.deg += (deg - this.deg) * 0.075;
-    this.domElement.style.filter = `hue-rotate(${this.deg.toFixed(1)}deg)`;
+    // Writing `filter` re-rasterizes the whole subtree, so only touch it when
+    // the value actually moved by a visible amount.
+    const next = Math.round(this.deg);
+    if (next === this.lastHue) return;
+    this.lastHue = next;
+    this.domElement.style.filter = `hue-rotate(${next}deg)`;
   }
 
   asciify(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    if (w && h) {
-      const imgData = ctx.getImageData(0, 0, w, h).data;
-      let str = "";
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const i = x * 4 + y * 4 * w;
-          const [r, g, b, a] = [
-            imgData[i],
-            imgData[i + 1],
-            imgData[i + 2],
-            imgData[i + 3],
-          ];
-
-          if (a === 0) {
-            str += " ";
-            continue;
-          }
-
-          const gray = (0.3 * r + 0.6 * g + 0.1 * b) / 255;
-          let idx = Math.floor((1 - gray) * (this.charset.length - 1));
-          if (this.invert) idx = this.charset.length - idx - 1;
-          str += this.charset[idx];
+    if (!w || !h) return;
+    const imgData = ctx.getImageData(0, 0, w, h).data;
+    // Build into an array and join once; repeated `+=` on a rope this long is
+    // a per-frame allocation storm.
+    const rows: string[] = [];
+    const row: string[] = new Array(w);
+    const last = this.charset.length - 1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = x * 4 + y * 4 * w;
+        const a = imgData[i + 3];
+        if (a === 0) {
+          row[x] = " ";
+          continue;
         }
-        str += "\n";
+        const gray =
+          (0.3 * imgData[i] + 0.6 * imgData[i + 1] + 0.1 * imgData[i + 2]) /
+          255;
+        let idx = Math.floor((1 - gray) * last);
+        if (this.invert) idx = last - idx;
+        row[x] = this.charset[idx];
       }
-      this.pre.innerHTML = str;
+      rows.push(row.join(""));
     }
+    const str = rows.join("\n");
+    // Nothing changed — skip the DOM write and the layout it would trigger.
+    if (str === this.lastFrame) return;
+    this.lastFrame = str;
+    // `textContent`, not `innerHTML`: the charset contains `<`, `>`, `&` and
+    // `\`, which the HTML parser would swallow or mangle, and re-parsing this
+    // much markup every frame is what pins the main thread.
+    this.pre.textContent = str;
   }
 
   dispose() {
@@ -307,6 +321,14 @@ class CanvAscii {
   filter!: AsciiFilter;
   center: { x: number; y: number } = { x: 0, y: 0 };
   animationFrameId = 0;
+  /** False while the footer is scrolled out of view or the tab is hidden. */
+  active = true;
+  textDrawn = false;
+  private io: IntersectionObserver | null = null;
+  private onVisibility = () => {
+    this.active = !document.hidden && this.onScreen;
+  };
+  private onScreen = true;
 
   constructor(
     {
@@ -412,8 +434,29 @@ class CanvAscii {
     this.container.appendChild(this.filter.domElement);
     this.setSize(this.width, this.height);
 
-    this.container.addEventListener("mousemove", this.onMouseMove as EventListener);
-    this.container.addEventListener("touchmove", this.onMouseMove as EventListener);
+    this.container.addEventListener(
+      "mousemove",
+      this.onMouseMove as EventListener,
+      { passive: true }
+    );
+    this.container.addEventListener(
+      "touchmove",
+      this.onMouseMove as EventListener,
+      { passive: true }
+    );
+
+    // This lives in the page footer. Rendering it while it is scrolled away —
+    // or while the tab is in the background — is the single largest avoidable
+    // cost on the page.
+    this.io = new IntersectionObserver(
+      ([entry]) => {
+        this.onScreen = entry?.isIntersecting ?? true;
+        this.active = this.onScreen && !document.hidden;
+      },
+      { threshold: 0 }
+    );
+    this.io.observe(this.container);
+    document.addEventListener("visibilitychange", this.onVisibility);
   }
 
   setSize(w: number, h: number) {
@@ -441,18 +484,29 @@ class CanvAscii {
   }
 
   animate() {
-    const animateFrame = () => {
+    // 30fps. The output is a coarse glyph grid, so the extra frames cost a
+    // full canvas readback each and buy nothing visible.
+    const frameMs = 1000 / 30;
+    let lastTick = 0;
+    const animateFrame = (now: number) => {
       this.animationFrameId = requestAnimationFrame(animateFrame);
+      if (!this.active) return;
+      if (now - lastTick < frameMs) return;
+      lastTick = now;
       this.render();
     };
-    animateFrame();
+    this.animationFrameId = requestAnimationFrame(animateFrame);
   }
 
   render() {
     const time = new Date().getTime() * 0.001;
 
-    this.textCanvas.render();
-    this.texture.needsUpdate = true;
+    // The text plane is static; re-rasterising it every frame is pure waste.
+    if (!this.textDrawn) {
+      this.textCanvas.render();
+      this.texture.needsUpdate = true;
+      this.textDrawn = true;
+    }
 
     if (this.mesh?.material) {
       (this.mesh.material as THREE.ShaderMaterial).uniforms.uTime.value =
@@ -490,6 +544,10 @@ class CanvAscii {
 
   dispose() {
     cancelAnimationFrame(this.animationFrameId);
+    this.active = false;
+    this.io?.disconnect();
+    this.io = null;
+    document.removeEventListener("visibilitychange", this.onVisibility);
     if (this.filter) {
       this.filter.dispose();
       if (this.filter.domElement.parentNode) {
@@ -638,8 +696,6 @@ export default function ASCIIText({
       }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap');
-
         .ascii-text-container canvas {
           position: absolute;
           left: 0;
@@ -665,11 +721,18 @@ export default function ASCIIText({
           left: 0;
           top: 0;
           background-image: radial-gradient(circle, #ff6188 0%, #fc9867 50%, #ffd866 100%);
-          background-attachment: fixed;
+          /* No 'background-attachment: fixed' here. Combined with
+             background-clip:text and mix-blend-mode, WebKit re-rasterises the
+             whole page on every scroll and repaint, which is what made the
+             site strobe on Safari and iOS. */
           -webkit-text-fill-color: transparent;
+          background-clip: text;
           -webkit-background-clip: text;
           z-index: 9;
           mix-blend-mode: difference;
+          /* Promote to its own layer so its repaints stay local. */
+          will-change: transform;
+          transform: translateZ(0);
         }
       `}</style>
     </div>

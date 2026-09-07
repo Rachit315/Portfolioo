@@ -24,11 +24,24 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // `baseColor` arrives as a fresh array literal on every parent render. Used
+  // directly as an effect dependency it tore down and rebuilt the whole WebGL
+  // context each time — Safari caps live contexts per page, so the churn was
+  // enough to lose contexts elsewhere on the page.
+  const [r, g, b] = baseColor;
+
   useEffect(() => {
     if (!containerRef.current) return;
 
     const container = containerRef.current;
-    const renderer = new Renderer({ antialias: true, alpha: true });
+    const renderer = new Renderer({
+      antialias: false,
+      alpha: true,
+      // This is a 140×40px button. Rendering it at 3× on a Retina display
+      // costs 9× the fragments for no visible gain.
+      dpr: Math.min(typeof window !== "undefined" ? window.devicePixelRatio : 1, 1.5),
+      powerPreference: "low-power",
+    });
     const gl = renderer.gl;
 
     const vertexShader = `
@@ -100,7 +113,7 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
             (gl.canvas.width || 1) / (gl.canvas.height || 1),
           ]),
         },
-        uBaseColor: { value: new Float32Array(baseColor) },
+        uBaseColor: { value: new Float32Array([r, g, b]) },
         uAmplitude: { value: amplitude },
         uFrequencyX: { value: frequencyX },
         uFrequencyY: { value: frequencyY },
@@ -154,9 +167,17 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
       container.addEventListener("touchmove", handleTouchMove);
     }
 
+    // The fragment shader runs a 9-tap supersample over a 10-iteration
+    // domain-warp loop. At 60fps on a Retina button that is a genuinely
+    // expensive draw, and it is decorative — 30fps reads identically.
+    const frameMs = 1000 / 30;
+    let lastTick = 0;
     let animationId: number;
     function update(t: number) {
       animationId = requestAnimationFrame(update);
+      if (document.hidden) return;
+      if (t - lastTick < frameMs) return;
+      lastTick = t;
       program.uniforms.uTime.value = t * 0.001 * speed;
       renderer.render({ scene: mesh });
     }
@@ -177,7 +198,7 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
       }
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [baseColor, speed, amplitude, frequencyX, frequencyY, interactive]);
+  }, [r, g, b, speed, amplitude, frequencyX, frequencyY, interactive]);
 
   return <div ref={containerRef} className={`w-full h-full ${className}`} {...props} />;
 };

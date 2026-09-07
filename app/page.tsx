@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import * as motion from "motion/react-client";
 import { AnimatePresence } from "motion/react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AsciiFluid } from "@/components/ui/ascii-fluid";
 import { Switch } from "@/components/ui/switch";
 import ASCIIText from "@/components/ASCIIText";
@@ -29,12 +29,16 @@ const projects = [
   { name: "Kourt king", year: "2025", href: "/projects/kourt-king", image: "/Projects/Kourt%20king/Hero.png" },
 ];
 
+// Filenames are ASCII and space-free, and each file has been remuxed with its
+// `moov` atom at the front. Without that, Safari has to download the whole
+// file before it can show a single frame — which is why these cards rendered
+// as empty grey boxes on iOS.
 const designEngineerVideos = [
-  { src: "/D.engineer/2026-08-05 09-58-01.mp4", href: "https://github-component.vercel.app/" },
-  { src: "/D.engineer/2026-08-04 11-31-36.mp4", href: "https://crazy-btn.vercel.app/" },
-  { src: "/D.engineer/2026-08-02 22-49-22.mp4", href: "https://widgetcn.vercel.app/" },
-  { src: "/D.engineer/2026-08-01 10-21-50.mp4", href: "https://football-card-zeta.vercel.app/" },
-  { src: "/D.engineer/2026-08-01 10-21-31.mp4", href: "https://cool-music-widget.vercel.app/" },
+  { src: "/D.engineer/github-component.mp4", href: "https://github-component.vercel.app/" },
+  { src: "/D.engineer/crazy-btn.mp4", href: "https://crazy-btn.vercel.app/" },
+  { src: "/D.engineer/widgetcn.mp4", href: "https://widgetcn.vercel.app/" },
+  { src: "/D.engineer/football-card.mp4", href: "https://football-card-zeta.vercel.app/" },
+  { src: "/D.engineer/music-widget.mp4", href: "https://cool-music-widget.vercel.app/" },
 ];
 
 function HighlightLink({
@@ -211,6 +215,33 @@ function DesignEngineerCard({
     }
   };
 
+  // Touch devices never fire mouseenter, so hover-gated playback left these
+  // cards permanently blank on phones. Play them while they are on screen
+  // instead, and stop as soon as they leave — muted + playsInline is the
+  // combination iOS allows to start without a gesture.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!window.matchMedia("(hover: none)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          video.play().catch(() => {
+            // Autoplay can still be refused (Low Power Mode); the poster
+            // frame stays visible, which is the point.
+          });
+        } else {
+          video.pause();
+        }
+      },
+      { threshold: 0.25 }
+    );
+    io.observe(video);
+    return () => io.disconnect();
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -237,10 +268,16 @@ function DesignEngineerCard({
           loop
           muted
           playsInline
-          preload="metadata"
+          // Safari only paints a first frame once it has decoded one, so ask
+          // for the leading data rather than metadata alone.
+          preload="auto"
+          // Intrinsic size, so the card reserves its box before any bytes
+          // arrive instead of collapsing to a zero-height sliver.
+          width={1280}
+          height={720}
           aria-label={`Design Engineering Project interactive demo ${index + 1}`}
           title={`Design Engineering Project demo ${index + 1}`}
-          className="w-full h-auto block rounded-[16px] transition-transform duration-300 group-hover:scale-[1.01]"
+          className="w-full h-auto block aspect-video bg-[#e5e5e5] rounded-[16px] transition-transform duration-300 group-hover:scale-[1.01]"
         />
 
         {/* Hover "Visit ↗" badge */}
@@ -278,7 +315,10 @@ export default function Home() {
   const [designEngineerMode, setDesignEngineerMode] = useState(false);
 
   return (
-    <main className="relative min-h-screen flex justify-center overflow-x-hidden px-4 py-8 sm:px-6 sm:py-16 md:py-24">
+    // `min-h-svh` rather than `min-h-screen`: on iOS, `100vh` is the tall
+    // viewport, so the page height changes every time the URL bar collapses
+    // and the layout visibly jumps mid-scroll.
+    <main className="relative min-h-svh flex justify-center px-4 py-8 sm:px-6 sm:py-16 md:py-24">
       <AsciiFluid
         className="fixed inset-0 -z-10 w-full h-full"
         cellSize={6}
