@@ -1,7 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Component,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 /* -------------------------------------------------------------------------
    A Figma-flavoured playground that lives *around* the portfolio column.
@@ -156,20 +163,24 @@ function blip(
   duration: number,
   peak: number
 ) {
-  const ctx = getAudio();
-  if (!ctx) return;
-  const t = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(from, t);
-  osc.frequency.exponentialRampToValueAtTime(Math.max(to, 1), t + duration);
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(peak, t + 0.008);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(t);
-  osc.stop(t + duration + 0.02);
+  try {
+    const ctx = getAudio();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, t);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(to, 1), t + duration);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + duration + 0.02);
+  } catch {
+    // ignore audio errors
+  }
 }
 
 const sfx = {
@@ -370,7 +381,29 @@ function MenuItem({
 
 /* ------------------------------ component ------------------------------- */
 
-export function FigmaCanvas() {
+class FigmaErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("FigmaCanvas error caught:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
+function FigmaCanvasInner() {
   const [enabled, setEnabled] = useState(false);
   const [zones, setZones] = useState<Zone[]>([]);
   const [dark, setDark] = useState(false);
@@ -688,6 +721,7 @@ export function FigmaCanvas() {
     }
 
     const kind: Kind = tool === "pencil" ? "pencil" : shapeKind;
+    const isLineOrArrow = kind === "line" || kind === "arrow";
     const shape: Shape = {
       id: uid(),
       kind,
@@ -696,8 +730,10 @@ export function FigmaCanvas() {
       w: 0,
       h: 0,
       color,
-      ...(kind === "pencil" || kind === "line" || kind === "arrow"
+      ...(kind === "pencil"
         ? { points: [[0, 0]] as [number, number][] }
+        : isLineOrArrow
+        ? { points: [[0, 0], [0, 0]] as [number, number][] }
         : {}),
     };
     document.body.classList.add("figma-dragging");
@@ -892,6 +928,8 @@ export function FigmaCanvas() {
         const worthKeeping =
           s.kind === "pencil"
             ? (s.points?.length ?? 0) > 1 && (s.w > 4 || s.h > 4)
+            : s.kind === "line" || s.kind === "arrow"
+            ? s.w > 4 || s.h > 4
             : s.w > 6 || s.h > 6;
         if (worthKeeping) {
           checkpointRef.current();
@@ -1029,7 +1067,7 @@ export function FigmaCanvas() {
       : { color: ui.icon, background: "transparent" };
 
   const renderShape = (s: Shape, isDraft = false) => {
-    const c = PALETTE[s.color];
+    const c = PALETTE[s.color] ?? PALETTE[0];
     const common = {
       fill: c.fill,
       stroke: c.stroke,
@@ -1077,12 +1115,15 @@ export function FigmaCanvas() {
         return <polygon {...common} {...handlers} points={starPoints(s)} />;
       case "line":
       case "arrow": {
-        const p = (s.points ?? [
-          [0, 0],
-          [s.w, s.h],
-        ]) as [number, number][];
-        const [x1, y1] = [p[0][0] + s.x, p[0][1] + s.y];
-        const [x2, y2] = [p[1][0] + s.x, p[1][1] + s.y];
+        const p1 = s.points?.[0] ?? [0, 0];
+        const p2 = s.points?.[1] ?? [s.w, s.h];
+        const [x1, y1] = [p1[0] + s.x, p1[1] + s.y];
+        const [x2, y2] = [p2[0] + s.x, p2[1] + s.y];
+        const hasLength = Math.hypot(x2 - x1, y2 - y1) > 0.5;
+        const colorIdx =
+          typeof s.color === "number" && s.color >= 0 && s.color < PALETTE.length
+            ? s.color
+            : 0;
         return (
           <g {...handlers} opacity={isDraft ? 0.75 : 1}>
             <line
@@ -1094,7 +1135,9 @@ export function FigmaCanvas() {
               strokeWidth={2}
               strokeLinecap="round"
               markerEnd={
-                s.kind === "arrow" ? `url(#fig-arrow-${s.color})` : undefined
+                s.kind === "arrow" && hasLength
+                  ? `url(#fig-arrow-${colorIdx})`
+                  : undefined
               }
             />
             {/* fat invisible hit area */}
@@ -1185,7 +1228,7 @@ export function FigmaCanvas() {
                 refY="5"
                 markerWidth="6"
                 markerHeight="6"
-                orient="auto-start-reverse"
+                orient="auto"
               >
                 <path d="M0 0 L10 5 L0 10 z" fill={c.stroke} />
               </marker>
@@ -1323,7 +1366,7 @@ export function FigmaCanvas() {
               style={{
                 left: s.x,
                 top: s.y,
-                color: PALETTE[s.color].stroke,
+                color: (PALETTE[s.color] ?? PALETTE[0]).stroke,
                 transform:
                   s.baseW && s.baseH
                     ? `scale(${s.w / s.baseW}, ${s.h / s.baseH})`
@@ -1496,5 +1539,13 @@ export function FigmaCanvas() {
         </div>
       </motion.div>
     </>
+  );
+}
+
+export function FigmaCanvas() {
+  return (
+    <FigmaErrorBoundary>
+      <FigmaCanvasInner />
+    </FigmaErrorBoundary>
   );
 }
