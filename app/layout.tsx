@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import localFont from "next/font/local";
 import { PullCordSwitch } from "@/components/PullCordSwitch";
+import { FigmaCanvas } from "@/components/FigmaCanvas";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -40,7 +41,7 @@ export const metadata: Metadata = {
     apple: "/Logo%20(1).png",
   },
   title: {
-    default: "Rachit Thakur — Product Designer & Design Engineer",
+    default: "I Know Design",
     template: "%s | Rachit Thakur",
   },
   description:
@@ -181,6 +182,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-300">
         <PullCordSwitch />
+        <FigmaCanvas />
         {children}
         <Analytics />
       </body>
